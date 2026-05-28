@@ -163,6 +163,31 @@ Open the Harmony mobile app and continue account/profile restore from there.
 The `PHASE 1 COMPLETE` block at the end is the cue to switch to the Harmony
 mobile app for Phase 2.
 
+## Phase 2: Restore Your Account in the App
+
+Open the Harmony mobile app, select your hub from the list, and sign in to
+your Logitech account. The app will start restoring your hub's profile.
+
+### Press the Pair/Reset button when the app asks
+
+Roughly a third of the way through the restore (around the **Preparing Your
+Hub** step), the app will pause and ask you to press the **Pair/Reset**
+button on the back of the hub again. This is expected every time -- it is
+not a sign that anything has gone wrong.
+
+![Restoring Account progress screen at the Pair/Reset prompt](docs/images/harmony-app-restore-pair-prompt.png)
+
+Press the button once, then let the app continue. The remainder of the
+restore should complete without further prompts.
+
+### Wait before unplugging
+
+After the app reports restore is complete, **leave the hub powered for at
+least two minutes** before you unplug it to move it. This gives the hub
+time to fully persist the new configuration to flash. Unplugging too soon
+has been observed to roll the hub back to an unprovisioned state, forcing
+a fresh factory reset.
+
 ## What Success Means
 
 Successful Phase 1 means:
