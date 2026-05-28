@@ -1,6 +1,6 @@
 [project]
 name = "harmony-hub-setup"
-version = "0.2.0"
+version = "0.2.1"
 description = "Configure a Logitech Harmony Hub over Bluetooth (Wi-Fi setup, scanning, status)"
 readme = "README.md"
 license = "MIT"

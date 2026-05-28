@@ -3,10 +3,10 @@ revision = 3
 requires-python = ">=3.10"
 
 [options]
-exclude-newer = "2026-05-21T03:48:49.197232666Z"
+exclude-newer = "2026-05-21T03:54:09.547046324Z"
 exclude-newer-span = "P7D"
 
 [[package]]
 name = "harmony-hub-setup"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "." }
