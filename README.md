@@ -93,6 +93,76 @@ Open the Harmony mobile app and continue account/profile restore from there.
 At that point, open the Harmony mobile app, select the hub found on the network,
 log in to the Logitech account, and let the app restore the profile.
 
+## Example Output
+
+A successful run looks like this (placeholders shown for the Bluetooth address,
+SSID, and IP):
+
+```text
+No Bluetooth address provided; scanning for Harmony Hub candidates...
+Bluetooth devices:
+  AA:BB:CC:DD:EE:FF  Harmony Hub  [Harmony candidate]
+
+Using discovered Harmony Hub: AA:BB:CC:DD:EE:FF Harmony Hub
+
+Waiting for Harmony Hub Bluetooth...
+(Factory reset the hub if you haven't already)
+
+Connected on attempt 1!
+
+[1/8] Verify Bluetooth command channel
+  Hub alive (uuid=...)
+
+[2/8] Scan for target Wi-Fi network
+  Found target SSID (signal=212, security=WPA2-PSK, channel=2422)
+
+[3/8] Get Bluetooth nonce
+  Nonce received (32 chars).
+
+[4/8] Connect hub to Wi-Fi (Your Wi-Fi Name)
+  Wi-Fi command attempt 1 returned code=500; retrying.
+  Wi-Fi command accepted on attempt 2.
+  Connected! IP: 192.0.2.200
+
+[5/8] Set discovery provisioning over Bluetooth
+  Provision command accepted.
+
+[6/8] Confirm pre-account Phase 1 handoff state over Bluetooth
+  Bluetooth provision-info: mode=2, account=not set, secure=True
+
+[7/8] Read Bluetooth setup gates
+  RF info response: code=200
+  Firmware: 4.15.600
+  Wi-Fi: connected
+  SSID: Your Wi-Fi Name
+  IP: 192.0.2.200
+
+[8/8] Verify local hub setup endpoint
+  LAN ping OK: http://192.0.2.200:8088
+  LAN system-info OK.
+  Hub firmware: 4.15.600
+  LAN provision-info OK.
+  Provision mode: 2
+  Account ID:      not set
+  Auth token:      not set
+  LAN Phase 1 handoff: mode=2, account=not set, secure=True
+  LAN discovery-info OK.
+  LAN paired-device info OK.
+  LAN firmware check OK.
+
+Final state
+  Discovery server: https://svcs.myharmony.com/Discovery/Discovery.svc
+  SUS channel:      Production
+  Mode:             2
+
+PHASE 1 COMPLETE
+The hub is on Wi-Fi, in mode=2, and reachable through the local setup endpoint.
+Open the Harmony mobile app and continue account/profile restore from there.
+```
+
+The `PHASE 1 COMPLETE` block at the end is the cue to switch to the Harmony
+mobile app for Phase 2.
+
 ## What Success Means
 
 Successful Phase 1 means:
