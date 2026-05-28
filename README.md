@@ -74,44 +74,12 @@ approximately 30 seconds as the hub restores itself to factory defaults.
 Once the flickering stops and the hub re-enters Bluetooth setup mode, continue
 with the next section.
 
-## Discover the Hub
-
-After factory reset, plug in the hub and wait for it to enter Bluetooth setup
-mode. Then run:
-
-```bash
-uv run harmony-hub-setup discover
-```
-
-The command scans with `bluetoothctl` and prints nearby devices. A typical
-result looks like:
-
-```text
-Bluetooth devices:
-  AA:BB:CC:DD:EE:FF  Harmony Hub  [Harmony candidate]
-```
-
-If a Harmony candidate is listed, use that address with `--address`. If setup is
-run without `--address`, it will auto-discover and use the address only when
-exactly one Harmony-looking device is found.
-
 ## Phase 1 Setup
 
 Run:
 
 ```bash
 uv run harmony-hub-setup setup \
-  --ssid "Your Wi-Fi Name" \
-  --password "Your Wi-Fi Password" \
-  --encryption WPA2-PSK
-```
-
-Or pass the Bluetooth address explicitly:
-
-```bash
-uv run harmony-hub-setup \
-  --address AA:BB:CC:DD:EE:FF \
-  setup \
   --ssid "Your Wi-Fi Name" \
   --password "Your Wi-Fi Password" \
   --encryption WPA2-PSK
@@ -128,6 +96,43 @@ Open the Harmony mobile app and continue account/profile restore from there.
 
 At that point, open the Harmony mobile app, select the hub found on the network,
 log in to the Logitech account, and let the app restore the profile.
+
+### Discover the Hub (Optional and Typically Unnecessary Step)
+
+The above `setup` command runs discovery automatically. Should you wish to identify
+your Harmony Hub's Bluetooth address, follow these directions.
+
+After factory reset, plug in the hub and wait for it to enter Bluetooth setup
+mode. Then run:
+
+```bash
+uv run harmony-hub-setup discover
+```
+
+(This does not require a factory reset to discover the Bluetooth address.)
+
+The command scans with `bluetoothctl` and prints nearby devices. A typical
+result looks like:
+
+```text
+Bluetooth devices:
+  AA:BB:CC:DD:EE:FF  Harmony Hub  [Harmony candidate]
+```
+
+If a Harmony candidate is listed, use that address with `--address`. If setup is
+run without `--address`, it will auto-discover and use the address only when
+exactly one Harmony-looking device is found.
+
+Then, pass the Bluetooth address explicitly:
+
+```bash
+uv run harmony-hub-setup \
+  --address AA:BB:CC:DD:EE:FF \
+  setup \
+  --ssid "Your Wi-Fi Name" \
+  --password "Your Wi-Fi Password" \
+  --encryption WPA2-PSK
+```
 
 ## Example Output
 
