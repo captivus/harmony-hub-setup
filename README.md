@@ -17,6 +17,24 @@ The official Harmony iPhone or Android app performs **Phase 2**:
 2. Logs in to the Logitech account.
 3. Restores the hub's devices, activities, and account profile.
 
+## Why this exists
+
+Since early 2025, connecting to my Logitech Harmony Hub from the iPhone app
+has become increasingly difficult and buggy. The usual recovery path --
+factory reset the hub and let the iPhone app re-provision it from my Logitech
+account -- has itself become fraught and unreliable on the iPhone in that
+same window. The hub frequently fails to join Wi-Fi during the app's setup
+flow even when the network is healthy and well in range, leaving the hub
+unreachable.
+
+This tool exists to take that fragile Wi-Fi join out of the iPhone app's
+hands. It does the Bluetooth handshake, Wi-Fi join, and dummy discovery
+provisioning over RFCOMM from a Linux computer, then verifies the hub is
+sitting on the network in the pre-account state the app expects. From that
+point the iPhone app only has to do its Phase 2 work (find the hub on the
+network, sign in, restore the profile), which in my experience has been
+the more reliable half of the flow.
+
 ## Requirements
 
 - Linux with Bluetooth support.
