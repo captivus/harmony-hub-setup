@@ -25,6 +25,19 @@ The official Harmony iPhone or Android app performs **Phase 2**:
 - A Harmony Hub that has been factory reset.
 - The Wi-Fi network name and password for the network the hub should join.
 
+## Factory Reset the Hub
+
+Phase 1 setup assumes the hub starts from a clean factory-reset state.
+
+Unplug your hub and then hold the **Pair/Reset** button on the back while
+plugging it back in. The light on the front of the hub will flicker red for
+approximately 30 seconds as the hub restores itself to factory defaults.
+
+![Harmony Hub Pair/Reset button location](docs/images/harmony-hub-pair-reset.png)
+
+Once the flickering stops and the hub re-enters Bluetooth setup mode, continue
+with the next section.
+
 ## Discover the Hub
 
 After factory reset, plug in the hub and wait for it to enter Bluetooth setup
