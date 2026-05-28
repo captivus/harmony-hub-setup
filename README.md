@@ -35,6 +35,17 @@ point the iPhone app only has to do its Phase 2 work (find the hub on the
 network, sign in, restore the profile), which in my experience has been
 the more reliable half of the flow.
 
+## Disclaimer
+
+This is an unofficial, third-party tool. It is **not affiliated with,
+endorsed by, or supported by Logitech**. "Harmony", "Logitech", and the
+Logitech logo are trademarks of their respective owners and are used here
+only to identify the device this tool interacts with.
+
+The Bluetooth setup protocol used by this tool was reverse-engineered from
+the publicly distributed Harmony Android app and the hub's own observable
+behavior. Use this tool only with Harmony Hubs that you own.
+
 ## Requirements
 
 - Linux with Bluetooth support.
