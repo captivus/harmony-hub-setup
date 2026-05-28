@@ -259,3 +259,11 @@ If the mobile app cannot find the hub after Phase 1 completes:
 - Wait briefly for the hub to appear in the app.
 - Run `harmony-hub-setup --address <address> status` while Bluetooth is still
   available to inspect the hub state.
+
+## Releasing (maintainer)
+
+Releases are cut from the project root with `release X.Y.Z` (or `release` for
+an interactive version prompt). The tool bumps `pyproject.toml`, commits,
+tags, pushes -- which triggers the PyPI publish workflow via GitHub Actions
+Trusted Publishing. Release notes auto-generate from commit messages between
+tags, so commits should read well as changelog entries.

@@ -3,15 +3,35 @@ name = "harmony-hub-setup"
 version = "0.1.0"
 description = "Configure a Logitech Harmony Hub over Bluetooth (Wi-Fi setup, scanning, status)"
 readme = "README.md"
-requires-python = ">=3.10"
 license = "MIT"
+authors = [
+    { name = "Corey Gallon", email = "366332+captivus@users.noreply.github.com" }
+]
+keywords = ["harmony", "logitech", "bluetooth", "rfcomm", "home-automation", "iot", "wifi", "provisioning"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Home Automation",
+    "Topic :: Utilities",
+]
+requires-python = ">=3.10"
 
 [project.scripts]
 harmony-hub-setup = "harmony_hub_setup.cli:main"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[project.urls]
+Homepage = "https://github.com/captivus/harmony-hub-setup"
+Repository = "https://github.com/captivus/harmony-hub-setup"
+Issues = "https://github.com/captivus/harmony-hub-setup/issues"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/harmony_hub_setup"]
+[build-system]
+requires = ["uv_build>=0.9.17,<0.10.0"]
+build-backend = "uv_build"
