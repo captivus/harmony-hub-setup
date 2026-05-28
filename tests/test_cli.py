@@ -12,6 +12,9 @@ PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from harmony_hub_setup.cli import (
+    BluetoothDevice,
+    choose_setup_address,
+    parse_bluetoothctl_devices,
     run_android_local_network_phase,
     run_bluetooth_provision,
     validate_phase1_handoff_provision_info,
@@ -140,6 +143,67 @@ class FakeAccountProvisionedLanClient(FakeLanClient):
                 "se": True,
             },
         }
+
+
+class BluetoothDiscoveryTests(unittest.TestCase):
+    def test_parses_bluetoothctl_device_lines(self):
+        devices = parse_bluetoothctl_devices(
+            output="\n".join([
+                "Device AA:BB:CC:DD:EE:FF Harmony Hub",
+                "Device 11:22:33:44:55:66 Wireless Keyboard",
+                "garbage",
+            ]),
+        )
+
+        self.assertEqual(
+            devices,
+            [
+                BluetoothDevice(address="AA:BB:CC:DD:EE:FF", name="Harmony Hub"),
+                BluetoothDevice(address="11:22:33:44:55:66", name="Wireless Keyboard"),
+            ],
+        )
+        self.assertTrue(devices[0].is_harmony_candidate)
+        self.assertFalse(devices[1].is_harmony_candidate)
+
+    def test_setup_uses_explicit_address_without_discovery(self):
+        address = choose_setup_address(
+            explicit_address="AA:BB:CC:DD:EE:FF",
+            scan_timeout=1.0,
+        )
+
+        self.assertEqual(address, "AA:BB:CC:DD:EE:FF")
+
+    def test_setup_auto_selects_single_harmony_candidate(self):
+        with patch(
+            "harmony_hub_setup.cli.discover_bluetooth_devices",
+            return_value=[
+                BluetoothDevice(address="11:22:33:44:55:66", name="Keyboard"),
+                BluetoothDevice(address="AA:BB:CC:DD:EE:FF", name="Harmony Hub"),
+            ],
+        ):
+            with redirect_stdout(StringIO()):
+                address = choose_setup_address(
+                    explicit_address=None,
+                    scan_timeout=1.0,
+                )
+
+        self.assertEqual(address, "AA:BB:CC:DD:EE:FF")
+
+    def test_setup_does_not_auto_select_multiple_harmony_candidates(self):
+        with patch(
+            "harmony_hub_setup.cli.discover_bluetooth_devices",
+            return_value=[
+                BluetoothDevice(address="AA:BB:CC:DD:EE:FF", name="Harmony Hub"),
+                BluetoothDevice(address="11:22:33:44:55:66", name="Logitech Harmony"),
+            ],
+        ):
+            with redirect_stdout(StringIO()):
+                address = choose_setup_address(
+                    explicit_address=None,
+                    scan_timeout=1.0,
+                )
+
+        self.assertIsNone(address)
 
 
 class WaitForWifiConnectionTests(unittest.TestCase):

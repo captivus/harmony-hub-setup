@@ -4,18 +4,141 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import subprocess
 import sys
 import time
+from dataclasses import dataclass
 
 from .client import HarmonyHubClient
 from .lan_client import HarmonyHubLanClient, HarmonyHubLanError
 
 
 ANDROID_PHASE1_MODE = "2"
+BLUETOOTH_ADDRESS_RE = re.compile(r"^Device\s+([0-9A-Fa-f:]{17})(?:\s+(.*))?$")
+HARMONY_NAME_PARTS = ("harmony", "logitech")
+
+
+@dataclass(frozen=True)
+class BluetoothDevice:
+    address: str
+    name: str
+
+    @property
+    def is_harmony_candidate(self) -> bool:
+        normalized = self.name.lower()
+        return any(part in normalized for part in HARMONY_NAME_PARTS)
+
+
+class Progress:
+    def __init__(self, *, total_steps: int):
+        self.total_steps = total_steps
+        self.current_step = 0
+
+    def step(self, title: str) -> None:
+        self.current_step += 1
+        print(f"\n[{self.current_step}/{self.total_steps}] {title}")
 
 
 def _is_success_code(value: object) -> bool:
     return value in (200, "200")
+
+
+def run_bluetoothctl(*, arguments: list[str], timeout: float) -> str:
+    try:
+        result = subprocess.run(
+            ["bluetoothctl", *arguments],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=timeout,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("bluetoothctl was not found on PATH") from exc
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+        return f"{stdout}\n{stderr}"
+
+    return f"{result.stdout}\n{result.stderr}"
+
+
+def parse_bluetoothctl_devices(output: str) -> list[BluetoothDevice]:
+    devices_by_address: dict[str, BluetoothDevice] = {}
+    for line in output.splitlines():
+        match = BLUETOOTH_ADDRESS_RE.match(line.strip())
+        if match is None:
+            continue
+        address = match.group(1).upper()
+        name = (match.group(2) or "").strip()
+        devices_by_address[address] = BluetoothDevice(
+            address=address,
+            name=name,
+        )
+    return list(devices_by_address.values())
+
+
+def discover_bluetooth_devices(
+    *,
+    scan_timeout: float,
+    runner=run_bluetoothctl,
+) -> list[BluetoothDevice]:
+    scan_seconds = max(1, int(scan_timeout))
+    scan_output = runner(
+        arguments=["--timeout", str(scan_seconds), "scan", "on"],
+        timeout=scan_timeout + 5.0,
+    )
+    devices_output = runner(
+        arguments=["devices"],
+        timeout=5.0,
+    )
+
+    devices_by_address: dict[str, BluetoothDevice] = {}
+    for device in parse_bluetoothctl_devices(scan_output + "\n" + devices_output):
+        devices_by_address[device.address] = device
+    return list(devices_by_address.values())
+
+
+def print_discovered_devices(*, devices: list[BluetoothDevice]) -> None:
+    if not devices:
+        print("No Bluetooth devices found.")
+        return
+
+    print("Bluetooth devices:")
+    for device in devices:
+        marker = "Harmony candidate" if device.is_harmony_candidate else "other"
+        name = device.name or "(unnamed)"
+        print(f"  {device.address}  {name}  [{marker}]")
+
+
+def choose_setup_address(
+    *,
+    explicit_address: str | None,
+    scan_timeout: float,
+) -> str | None:
+    if explicit_address:
+        return explicit_address
+
+    print("No Bluetooth address provided; scanning for Harmony Hub candidates...")
+    try:
+        devices = discover_bluetooth_devices(scan_timeout=scan_timeout)
+    except RuntimeError as exc:
+        print(f"  Auto-discovery failed: {exc}")
+        return None
+
+    candidates = [device for device in devices if device.is_harmony_candidate]
+    print_discovered_devices(devices=devices)
+
+    if len(candidates) == 1:
+        candidate = candidates[0]
+        print(f"\nUsing discovered Harmony Hub: {candidate.address} {candidate.name}")
+        return candidate.address
+
+    if len(candidates) > 1:
+        print("\nMultiple Harmony Hub candidates found. Re-run setup with --address <MAC>.")
+    else:
+        print("\nNo Harmony Hub candidate found. Re-run setup with --address <MAC>.")
+    return None
 
 
 def validate_phase1_handoff_provision_info(
@@ -128,11 +251,14 @@ def wait_for_wifi_connection(
     return None
 
 
-def run_android_local_network_phase(*, ip_address: str) -> bool:
+def run_android_local_network_phase(*, ip_address: str, progress: Progress | None = None) -> bool:
     """Run the Android app's first LAN setup probes against the hub."""
     lan_client = HarmonyHubLanClient(host=ip_address)
 
-    print("\nStep 8: Verify local hub setup endpoint")
+    if progress:
+        progress.step("Verify local hub setup endpoint")
+    else:
+        print("\nVerify local hub setup endpoint")
     try:
         if not lan_client.ping():
             print("  LAN ping returned a non-200 response.")
@@ -199,8 +325,11 @@ def run_android_local_network_phase(*, ip_address: str) -> bool:
     return True
 
 
-def run_bluetooth_provision(client: HarmonyHubClient) -> bool:
-    print("\nStep 5: Set discovery provisioning over Bluetooth")
+def run_bluetooth_provision(client: HarmonyHubClient, *, progress: Progress | None = None) -> bool:
+    if progress:
+        progress.step("Set discovery provisioning over Bluetooth")
+    else:
+        print("\nSet discovery provisioning over Bluetooth")
     resp = client.provision()
     if not resp:
         print("  No response from setup.account?provision.")
@@ -267,14 +396,16 @@ def cmd_provision(client: HarmonyHubClient, args: argparse.Namespace):
 
 
 def run_android_style_setup(client: HarmonyHubClient, args: argparse.Namespace) -> bool:
-    print("\nStep 1: Ping")
+    progress = Progress(total_steps=8)
+
+    progress.step("Verify Bluetooth command channel")
     ping = client.ping()
     if not ping or ping.get("code") != 200:
         print("  Hub not responding.")
         return False
     print(f"  Hub alive (uuid={ping.get('data', {}).get('uuid', '?')})")
 
-    print("\nStep 2: Scan Wi-Fi")
+    progress.step("Scan for target Wi-Fi network")
     networks = client.wifi_scan()
     matching_networks = [
         network for network in networks
@@ -295,7 +426,7 @@ def run_android_style_setup(client: HarmonyHubClient, args: argparse.Namespace) 
         f"security={security}, channel={strongest.get('channel', '?')})"
     )
 
-    print("\nStep 3: Get Bluetooth nonce")
+    progress.step("Get Bluetooth nonce")
     nonce = client.bt_nonce()
     if nonce and nonce.get("code") == 200:
         value = nonce.get("data", {}).get("nonce", "")
@@ -304,7 +435,7 @@ def run_android_style_setup(client: HarmonyHubClient, args: argparse.Namespace) 
         print(f"  Nonce request did not return code=200: {json.dumps(nonce, indent=2)}")
         return False
 
-    print(f"\nStep 4: Connect Wi-Fi ({args.ssid})")
+    progress.step(f"Connect hub to Wi-Fi ({args.ssid})")
     connected_wifi = wait_for_wifi_connection(
         client=client,
         ssid=args.ssid,
@@ -315,10 +446,10 @@ def run_android_style_setup(client: HarmonyHubClient, args: argparse.Namespace) 
         print("  Wi-Fi did not reach connected state; aborting setup.")
         return False
 
-    if not run_bluetooth_provision(client=client):
+    if not run_bluetooth_provision(client=client, progress=progress):
         return False
 
-    print("\nStep 6: Confirm pre-account Phase 1 handoff state over Bluetooth")
+    progress.step("Confirm pre-account Phase 1 handoff state over Bluetooth")
     provision_info = client.provision_info()
     if not require_phase1_handoff_provision_info(
         label="Bluetooth provision-info",
@@ -326,7 +457,7 @@ def run_android_style_setup(client: HarmonyHubClient, args: argparse.Namespace) 
     ):
         return False
 
-    print("\nStep 7: Read setup gates")
+    progress.step("Read Bluetooth setup gates")
     rf = client.rf_info()
     if rf:
         print(f"  RF info response: code={rf.get('code')}")
@@ -343,7 +474,10 @@ def run_android_style_setup(client: HarmonyHubClient, args: argparse.Namespace) 
     if data.get("connect_status") != "connected" or not data.get("ip_address"):
         return False
 
-    return run_android_local_network_phase(ip_address=data["ip_address"])
+    return run_android_local_network_phase(
+        ip_address=data["ip_address"],
+        progress=progress,
+    )
 
 
 def wait_for_account_link(client: HarmonyHubClient) -> None:
@@ -409,8 +543,27 @@ def cmd_setup(client: HarmonyHubClient, args: argparse.Namespace):
         print(f"  Firmware:         {data.get('hubSwVersion')}")
         print(f"  Wi-Fi status:     {data.get('wifiStatus')}")
 
-    print("\nHub passed Bluetooth Wi-Fi setup and Android-style LAN setup probes.")
-    print("Open the Harmony app and continue account/profile setup using the hub on the network.")
+    print("\nPHASE 1 COMPLETE")
+    print("The hub is on Wi-Fi, in mode=2, and reachable through the local setup endpoint.")
+    print("Open the Harmony mobile app and continue account/profile restore from there.")
+
+
+def cmd_discover(args: argparse.Namespace) -> None:
+    print(f"Scanning for Bluetooth devices for {int(args.timeout)} seconds...")
+    try:
+        devices = discover_bluetooth_devices(scan_timeout=args.timeout)
+    except RuntimeError as exc:
+        print(f"Discovery failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    print_discovered_devices(devices=devices)
+    candidates = [device for device in devices if device.is_harmony_candidate]
+    if len(candidates) == 1:
+        print(f"\nUse this address with setup: {candidates[0].address}")
+    elif len(candidates) > 1:
+        print("\nMultiple candidates found. Use the address for the hub you factory reset.")
+    else:
+        print("\nNo Harmony-named device found. Factory reset the hub and try again.")
 
 
 def cmd_status(client: HarmonyHubClient, args: argparse.Namespace):
@@ -463,7 +616,7 @@ def main():
         description="Configure a Logitech Harmony Hub over Bluetooth.",
     )
     parser.add_argument(
-        "--address", required=True,
+        "--address",
         help="Bluetooth MAC address of the Harmony Hub (e.g. AA:BB:CC:DD:EE:FF)",
     )
     parser.add_argument(
@@ -472,6 +625,14 @@ def main():
     )
 
     sub = parser.add_subparsers(dest="subcommand", required=True)
+
+    discover_parser = sub.add_parser("discover", help="Find nearby Harmony Hub Bluetooth addresses")
+    discover_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=20.0,
+        help="Bluetooth scan duration in seconds (default: 20)",
+    )
 
     sub.add_parser("status", help="Show hub status, Wi-Fi, and firmware info")
     sub.add_parser("scan", help="Scan for available Wi-Fi networks")
@@ -500,11 +661,21 @@ def main():
         action="store_true",
         help="Keep the Bluetooth connection open while waiting for app account linking",
     )
+    setup_parser.add_argument(
+        "--discover-timeout",
+        type=float,
+        default=20.0,
+        help="Bluetooth auto-discovery scan duration in seconds when --address is omitted",
+    )
 
     raw_parser = sub.add_parser("raw", help="Send a raw command to the hub")
     raw_parser.add_argument("command", help="Command string (e.g. connect.ping)")
 
     args = parser.parse_args()
+
+    if args.subcommand == "discover":
+        cmd_discover(args=args)
+        return
 
     dispatch = {
         "status": cmd_status,
@@ -515,7 +686,18 @@ def main():
         "raw": cmd_raw,
     }
 
-    client = HarmonyHubClient(address=args.address, channel=args.channel)
+    address = args.address
+    if args.subcommand == "setup":
+        address = choose_setup_address(
+            explicit_address=address,
+            scan_timeout=args.discover_timeout,
+        )
+        if not address:
+            sys.exit(1)
+    elif not address:
+        parser.error(f"{args.subcommand} requires --address")
+
+    client = HarmonyHubClient(address=address, channel=args.channel)
 
     if args.subcommand == "setup":
         # setup manages its own connection with retry logic
@@ -527,7 +709,7 @@ def main():
         finally:
             client.close()
     else:
-        print(f"Connecting to Harmony Hub at {args.address}...")
+        print(f"Connecting to Harmony Hub at {address}...")
         try:
             client.connect()
             print("Connected.\n")
