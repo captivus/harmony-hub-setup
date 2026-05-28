@@ -4,7 +4,7 @@
 [![Python versions](https://img.shields.io/pypi/pyversions/harmony-hub-setup.svg)](https://pypi.org/project/harmony-hub-setup/)
 [![PyPI status](https://img.shields.io/pypi/status/harmony-hub-setup.svg)](https://pypi.org/project/harmony-hub-setup/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/harmony-hub-setup.svg)](https://pypi.org/project/harmony-hub-setup/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/captivus/harmony-hub-setup/blob/main/LICENSE)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-blue.svg)](#requirements)
 
 Configure a factory-reset Logitech Harmony Hub far enough for the official
@@ -69,7 +69,7 @@ Unplug your hub and then hold the **Pair/Reset** button on the back while
 plugging it back in. The light on the front of the hub will flicker red for
 approximately 30 seconds as the hub restores itself to factory defaults.
 
-![Harmony Hub Pair/Reset button location](docs/images/harmony-hub-pair-reset.png)
+![Harmony Hub Pair/Reset button location](https://raw.githubusercontent.com/captivus/harmony-hub-setup/main/docs/images/harmony-hub-pair-reset.png)
 
 Once the flickering stops and the hub re-enters Bluetooth setup mode, continue
 with the next section.
@@ -211,7 +211,7 @@ Hub** step), the app will pause and ask you to press the **Pair/Reset**
 button on the back of the hub again. This is expected every time -- it is
 not a sign that anything has gone wrong.
 
-![Restoring Account progress screen at the Pair/Reset prompt](docs/images/harmony-app-restore-pair-prompt.png)
+![Restoring Account progress screen at the Pair/Reset prompt](https://raw.githubusercontent.com/captivus/harmony-hub-setup/main/docs/images/harmony-app-restore-pair-prompt.png)
 
 Press the button once, then let the app continue. The remainder of the
 restore should complete without further prompts.
