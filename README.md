@@ -1,5 +1,12 @@
 # Harmony Hub Setup
 
+[![PyPI version](https://img.shields.io/pypi/v/harmony-hub-setup.svg)](https://pypi.org/project/harmony-hub-setup/)
+[![Python versions](https://img.shields.io/pypi/pyversions/harmony-hub-setup.svg)](https://pypi.org/project/harmony-hub-setup/)
+[![PyPI status](https://img.shields.io/pypi/status/harmony-hub-setup.svg)](https://pypi.org/project/harmony-hub-setup/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/harmony-hub-setup.svg)](https://pypi.org/project/harmony-hub-setup/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-blue.svg)](#requirements)
+
 Configure a factory-reset Logitech Harmony Hub far enough for the official
 Harmony mobile app to finish account/profile restore.
 
