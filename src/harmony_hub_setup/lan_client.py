@@ -2,6 +2,11 @@
 
 The Android app's setup flow probes a newly Wi-Fi-connected hub by POSTing
 JSON commands to http://<hub-ip>:8088 before it continues account/profile setup.
+
+This module covers the Phase 1 pre-account probes only: ping, sysinfo,
+provisionInfo, discoveryInfo, firmware check. Account-linked commands
+(state digest, sync, proxy.resource) require encrypted payloads and are
+handled separately on the Phase 2 research branch.
 """
 
 from __future__ import annotations
@@ -24,7 +29,7 @@ class HarmonyHubLanError(RuntimeError):
 
 
 class HarmonyHubLanClient:
-    """HTTP client for the Harmony Hub local setup endpoint."""
+    """HTTP client for the hub's local setup endpoint."""
 
     def __init__(
         self,
@@ -45,12 +50,18 @@ class HarmonyHubLanClient:
         self,
         *,
         command: str,
+        params: dict[str, Any] | None = None,
         timeout: float | None = None,
     ) -> tuple[int, dict[str, Any] | None]:
+        request_body: dict[str, Any] = {"id": "124", "cmd": command}
+        if params is not None:
+            request_body["params"] = params
+
         payload = json.dumps(
-            {"id": "124", "cmd": command},
+            request_body,
             separators=(",", ":"),
         ).encode("utf-8")
+
         request = urllib.request.Request(
             url=self.url,
             data=payload,
@@ -72,6 +83,9 @@ class HarmonyHubLanClient:
             ) as response:
                 status = response.getcode()
                 body = response.read()
+        except urllib.error.HTTPError as exc:
+            status = exc.code
+            body = exc.read()
         except (TimeoutError, OSError, urllib.error.URLError) as exc:
             raise HarmonyHubLanError(str(exc)) from exc
 
@@ -87,6 +101,22 @@ class HarmonyHubLanClient:
             raise HarmonyHubLanError("Hub returned a non-object JSON response")
 
         return status, parsed
+
+    def command(
+        self,
+        *,
+        command: str,
+        params: dict[str, Any] | None = None,
+        timeout: float | None = None,
+    ) -> dict[str, Any] | None:
+        status, body = self._post(
+            command=command,
+            params=params,
+            timeout=timeout,
+        )
+        if status != 200:
+            return None
+        return body
 
     def ping(self) -> bool:
         status, _ = self._post(command="connect.ping")
@@ -107,8 +137,20 @@ class HarmonyHubLanClient:
             return None
         return body
 
+    def sys_info(self) -> dict[str, Any] | None:
+        status, body = self._post(command="connect.sysinfo?get")
+        if status != 200:
+            return None
+        return body
+
     def firmware_check(self) -> dict[str, Any] | None:
         status, body = self._post(command="setup.firmware?check")
+        if status != 200:
+            return None
+        return body
+
+    def rf_info(self) -> dict[str, Any] | None:
+        status, body = self._post(command="connect.rf?info")
         if status != 200:
             return None
         return body

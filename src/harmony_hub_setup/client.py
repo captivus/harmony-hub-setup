@@ -184,5 +184,6 @@ class HarmonyHubClient:
             timeout=120.0,
         )
 
+
     def state_digest(self) -> dict | None:
         return self.command("connect.statedigest?get")

@@ -11,6 +11,75 @@ from .client import HarmonyHubClient
 from .lan_client import HarmonyHubLanClient, HarmonyHubLanError
 
 
+ANDROID_PHASE1_MODE = "2"
+
+
+def _is_success_code(value: object) -> bool:
+    return value in (200, "200")
+
+
+def validate_phase1_handoff_provision_info(
+    provision_info: dict | None,
+) -> tuple[bool, list[str]]:
+    """Return whether provision info matches the pre-account Android handoff."""
+    problems: list[str] = []
+    if not provision_info:
+        return False, ["provision info was empty"]
+
+    if not _is_success_code(provision_info.get("code")):
+        problems.append(f"response code was {provision_info.get('code')!r}")
+
+    data = provision_info.get("data", {})
+    if not isinstance(data, dict):
+        return False, ["provision info data was not an object"]
+
+    mode = str(data.get("mode", ""))
+    if mode != ANDROID_PHASE1_MODE:
+        problems.append(f"mode was {mode or 'not set'}, expected {ANDROID_PHASE1_MODE}")
+
+    account_fields = ("accountId", "authToken", "email", "username", "activeRemoteId")
+    for field in account_fields:
+        if data.get(field):
+            problems.append(f"{field} was already set")
+
+    return not problems, problems
+
+
+def require_phase1_handoff_provision_info(
+    *,
+    label: str,
+    provision_info: dict | None,
+) -> bool:
+    valid, problems = validate_phase1_handoff_provision_info(
+        provision_info=provision_info,
+    )
+    if valid:
+        data = provision_info.get("data", {}) if provision_info else {}
+        secure_value = data.get("se", "not set")
+        print(f"  {label}: mode={data.get('mode')}, account=not set, secure={secure_value}")
+        return True
+
+    print(f"  {label}: invalid Phase 1 handoff state")
+    for problem in problems:
+        print(f"    - {problem}")
+    return False
+
+
+def _run_required_lan_probe(*, label: str, probe) -> dict | None:
+    try:
+        response = probe()
+    except HarmonyHubLanError as exc:
+        print(f"  {label} failed: {exc}")
+        return None
+
+    if response is None:
+        print(f"  {label} returned a non-200 response.")
+        return None
+
+    print(f"  {label} OK.")
+    return response
+
+
 def wait_for_wifi_connection(
     client: HarmonyHubClient,
     *,
@@ -63,7 +132,7 @@ def run_android_local_network_phase(*, ip_address: str) -> bool:
     """Run the Android app's first LAN setup probes against the hub."""
     lan_client = HarmonyHubLanClient(host=ip_address)
 
-    print("\nStep 7: Verify local hub setup endpoint")
+    print("\nStep 8: Verify local hub setup endpoint")
     try:
         if not lan_client.ping():
             print("  LAN ping returned a non-200 response.")
@@ -73,41 +142,58 @@ def run_android_local_network_phase(*, ip_address: str) -> bool:
         return False
     print(f"  LAN ping OK: http://{ip_address}:8088")
 
-    try:
-        provision_info = lan_client.provision_info()
-    except HarmonyHubLanError as exc:
-        print(f"  LAN provision-info request failed: {exc}")
+    sys_info = _run_required_lan_probe(
+        label="LAN system-info",
+        probe=lan_client.sys_info,
+    )
+    if sys_info is None:
         return False
+    sys_data = sys_info.get("data", {})
+    print(f"  Hub firmware:    {sys_data.get('fw_ver', sys_data.get('hubSwVersion', 'unknown'))}")
 
+    provision_info = _run_required_lan_probe(
+        label="LAN provision-info",
+        probe=lan_client.provision_info,
+    )
     if provision_info is None:
-        print("  LAN provision-info request returned a non-200 response.")
         return False
 
     data = provision_info.get("data", {}) if isinstance(provision_info, dict) else {}
     print(f"  Provision mode: {data.get('mode', 'not set')}")
     print(f"  Account ID:      {data.get('accountId', 'not set')}")
     print(f"  Auth token:      {'set' if data.get('authToken') else 'not set'}")
-
-    try:
-        discovery_info = lan_client.discovery_info()
-    except HarmonyHubLanError as exc:
-        print(f"  LAN discovery-info request failed: {exc}")
+    if not require_phase1_handoff_provision_info(
+        label="LAN Phase 1 handoff",
+        provision_info=provision_info,
+    ):
         return False
+
+    discovery_info = _run_required_lan_probe(
+        label="LAN discovery-info",
+        probe=lan_client.discovery_info,
+    )
     if discovery_info is None:
-        print("  LAN discovery-info request returned a non-200 response.")
         return False
     discovery_data = discovery_info.get("data", {})
     print(f"  Remote ID:       {discovery_data.get('remoteId', 'not set')}")
     print(f"  Hub ID:          {discovery_data.get('hubId', 'not set')}")
 
-    try:
-        firmware = lan_client.firmware_check()
-    except HarmonyHubLanError as exc:
-        print(f"  LAN firmware check skipped: {exc}")
-        return True
+    device_info = _run_required_lan_probe(
+        label="LAN paired-device info",
+        probe=lan_client.rf_info,
+    )
+    if device_info is None:
+        return False
+    devices = device_info.get("data", {}).get("Devices")
+    if isinstance(devices, list):
+        print(f"  Paired devices:  {len(devices)}")
+
+    firmware = _run_required_lan_probe(
+        label="LAN firmware check",
+        probe=lan_client.firmware_check,
+    )
     if firmware is None:
-        print("  LAN firmware check returned a non-200 response; continuing.")
-        return True
+        return False
     firmware_data = firmware.get("data", {})
     print(f"  Firmware status: {firmware_data.get('status', firmware_data.get('errorString', 'unknown'))}")
     return True
@@ -232,7 +318,15 @@ def run_android_style_setup(client: HarmonyHubClient, args: argparse.Namespace) 
     if not run_bluetooth_provision(client=client):
         return False
 
-    print("\nStep 6: Read setup gates")
+    print("\nStep 6: Confirm pre-account Phase 1 handoff state over Bluetooth")
+    provision_info = client.provision_info()
+    if not require_phase1_handoff_provision_info(
+        label="Bluetooth provision-info",
+        provision_info=provision_info,
+    ):
+        return False
+
+    print("\nStep 7: Read setup gates")
     rf = client.rf_info()
     if rf:
         print(f"  RF info response: code={rf.get('code')}")
@@ -393,7 +487,7 @@ def main():
 
     setup_parser = sub.add_parser(
         "setup",
-        help="Full setup: Wi-Fi + provision in one session (run after factory reset)",
+        help="Phase 1 handoff setup: Wi-Fi + dummy discovery provisioning",
     )
     setup_parser.add_argument("--ssid", required=True, help="Wi-Fi network name")
     setup_parser.add_argument("--password", required=True, help="Wi-Fi password")

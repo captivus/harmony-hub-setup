@@ -11,7 +11,10 @@ from unittest.mock import patch
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from harmony_hub_setup.lan_client import HarmonyHubLanClient, HarmonyHubLanError
+from harmony_hub_setup.lan_client import (
+    HarmonyHubLanClient,
+    HarmonyHubLanError,
+)
 
 
 class FakeHttpResponse:
@@ -109,6 +112,29 @@ class HarmonyHubLanClientTests(unittest.TestCase):
             "cmd": "connect.discoveryinfo?get",
         })
 
+    def test_sys_info_uses_web_app_system_info_command(self):
+        body = {
+            "id": "124",
+            "code": 200,
+            "data": {
+                "fw_ver": "4.15.307",
+            },
+        }
+        response = FakeHttpResponse(
+            status=200,
+            body=json.dumps(body).encode("utf-8"),
+        )
+        client = HarmonyHubLanClient(host="192.0.2.200")
+
+        with patch("urllib.request.urlopen", return_value=response) as urlopen:
+            self.assertEqual(client.sys_info(), body)
+
+        request = urlopen.call_args.kwargs["url"]
+        self.assertEqual(json.loads(request.data.decode("utf-8")), {
+            "id": "124",
+            "cmd": "connect.sysinfo?get",
+        })
+
     def test_firmware_check_uses_android_firmware_command(self):
         body = {
             "id": "124",
@@ -132,6 +158,62 @@ class HarmonyHubLanClientTests(unittest.TestCase):
             "cmd": "setup.firmware?check",
         })
 
+    def test_generic_command_posts_params_when_provided(self):
+        body = {
+            "id": "124",
+            "code": 200,
+            "data": {
+                "ok": True,
+            },
+        }
+        response = FakeHttpResponse(
+            status=200,
+            body=json.dumps(body).encode("utf-8"),
+        )
+        client = HarmonyHubLanClient(host="192.0.2.200")
+
+        with patch("urllib.request.urlopen", return_value=response) as urlopen:
+            result = client.command(
+                command="harmony.test?probe",
+                params={"option": "value"},
+            )
+
+        self.assertEqual(result, body)
+        request = urlopen.call_args.kwargs["url"]
+        self.assertEqual(json.loads(request.data.decode("utf-8")), {
+            "id": "124",
+            "cmd": "harmony.test?probe",
+            "params": {
+                "option": "value",
+            },
+        })
+
+    def test_rf_info_uses_web_app_device_info_command(self):
+        body = {
+            "id": "124",
+            "code": 200,
+            "data": {
+                "Devices": [],
+            },
+        }
+        response = FakeHttpResponse(
+            status=200,
+            body=json.dumps(body).encode("utf-8"),
+        )
+        client = HarmonyHubLanClient(host="192.0.2.200")
+
+        with patch("urllib.request.urlopen", return_value=response) as urlopen:
+            self.assertEqual(client.rf_info(), body)
+
+        request = urlopen.call_args.kwargs["url"]
+        self.assertEqual(json.loads(request.data.decode("utf-8")), {
+            "id": "124",
+            "cmd": "connect.rf?info",
+        })
+
+
+
+
     def test_network_error_is_reported_as_lan_error(self):
         client = HarmonyHubLanClient(host="192.0.2.200")
 
@@ -141,6 +223,9 @@ class HarmonyHubLanClientTests(unittest.TestCase):
         ):
             with self.assertRaises(HarmonyHubLanError):
                 client.ping()
+
+
+
 
 
 if __name__ == "__main__":
