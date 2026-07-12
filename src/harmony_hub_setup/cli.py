@@ -4,17 +4,21 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
 
+from dotenv import find_dotenv, load_dotenv
+
 from .client import HarmonyHubClient
 from .lan_client import HarmonyHubLanClient, HarmonyHubLanError
 
 
 ANDROID_PHASE1_MODE = "2"
+DEFAULT_ENCRYPTION = "WPA2-PSK"
 BLUETOOTH_ADDRESS_RE = re.compile(r"^Device\s+([0-9A-Fa-f:]{17})(?:\s+(.*))?$")
 HARMONY_NAME_PARTS = ("harmony", "logitech")
 
@@ -28,6 +32,49 @@ class BluetoothDevice:
     def is_harmony_candidate(self) -> bool:
         normalized = self.name.lower()
         return any(part in normalized for part in HARMONY_NAME_PARTS)
+
+
+@dataclass(frozen=True)
+class WifiCredentials:
+    ssid: str
+    password: str
+    encryption: str
+
+
+def resolve_wifi_credentials(
+    *,
+    ssid: str | None,
+    password: str | None,
+    encryption: str | None,
+    env,
+) -> tuple[WifiCredentials | None, list[str]]:
+    """Resolve Wi-Fi credentials from CLI values, falling back to the environment.
+
+    Explicit CLI values take precedence over ``.env``/environment values;
+    encryption falls back to ``DEFAULT_ENCRYPTION`` when neither source sets it.
+    Returns ``(credentials, missing)``; ``credentials`` is ``None`` and
+    ``missing`` names the absent required fields when ssid or password is unset.
+    """
+    resolved_ssid = ssid or env.get("SSID")
+    resolved_password = password or env.get("PASSWORD")
+    resolved_encryption = encryption or env.get("ENCRYPTION") or DEFAULT_ENCRYPTION
+
+    missing: list[str] = []
+    if not resolved_ssid:
+        missing.append("--ssid (or SSID in .env)")
+    if not resolved_password:
+        missing.append("--password (or PASSWORD in .env)")
+    if missing:
+        return None, missing
+
+    return (
+        WifiCredentials(
+            ssid=resolved_ssid,
+            password=resolved_password,
+            encryption=resolved_encryption,
+        ),
+        [],
+    )
 
 
 class Progress:
@@ -611,6 +658,10 @@ def cmd_raw(client: HarmonyHubClient, args: argparse.Namespace):
 
 
 def main():
+    # Discover .env from the current working directory upward, not from this
+    # package's install location, so the tool reads the .env where the user runs it.
+    load_dotenv(find_dotenv(usecwd=True))
+
     parser = argparse.ArgumentParser(
         prog="harmony-hub-setup",
         description="Configure a Logitech Harmony Hub over Bluetooth.",
@@ -639,22 +690,22 @@ def main():
     sub.add_parser("provision", help="Send provisioning command (sets discovery server)")
 
     connect_parser = sub.add_parser("connect", help="Connect hub to a Wi-Fi network")
-    connect_parser.add_argument("--ssid", required=True, help="Wi-Fi network name")
-    connect_parser.add_argument("--password", required=True, help="Wi-Fi password")
+    connect_parser.add_argument("--ssid", help="Wi-Fi network name (falls back to SSID in .env)")
+    connect_parser.add_argument("--password", help="Wi-Fi password (falls back to PASSWORD in .env)")
     connect_parser.add_argument(
-        "--encryption", default="WPA2-PSK",
-        help="Encryption type (default: WPA2-PSK)",
+        "--encryption", default=None,
+        help="Encryption type (falls back to ENCRYPTION in .env, then WPA2-PSK)",
     )
 
     setup_parser = sub.add_parser(
         "setup",
         help="Phase 1 handoff setup: Wi-Fi + dummy discovery provisioning",
     )
-    setup_parser.add_argument("--ssid", required=True, help="Wi-Fi network name")
-    setup_parser.add_argument("--password", required=True, help="Wi-Fi password")
+    setup_parser.add_argument("--ssid", help="Wi-Fi network name (falls back to SSID in .env)")
+    setup_parser.add_argument("--password", help="Wi-Fi password (falls back to PASSWORD in .env)")
     setup_parser.add_argument(
-        "--encryption", default="WPA2-PSK",
-        help="Encryption type (default: WPA2-PSK)",
+        "--encryption", default=None,
+        help="Encryption type (falls back to ENCRYPTION in .env, then WPA2-PSK)",
     )
     setup_parser.add_argument(
         "--wait-for-account-link",
@@ -676,6 +727,19 @@ def main():
     if args.subcommand == "discover":
         cmd_discover(args=args)
         return
+
+    if args.subcommand in ("connect", "setup"):
+        credentials, missing = resolve_wifi_credentials(
+            ssid=args.ssid,
+            password=args.password,
+            encryption=args.encryption,
+            env=os.environ,
+        )
+        if credentials is None:
+            parser.error(f"{args.subcommand} requires {' and '.join(missing)}")
+        args.ssid = credentials.ssid
+        args.password = credentials.password
+        args.encryption = credentials.encryption
 
     dispatch = {
         "status": cmd_status,

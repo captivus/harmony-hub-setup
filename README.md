@@ -97,6 +97,34 @@ Open the Harmony mobile app and continue account/profile restore from there.
 At that point, open the Harmony mobile app, select the hub found on the network,
 log in to the Logitech account, and let the app restore the profile.
 
+### Wi-Fi Credentials from a `.env` File
+
+Instead of passing `--ssid` and `--password` on every run, you can put them in a
+`.env` file in the directory you run the command from:
+
+```dotenv
+SSID=Your Wi-Fi Name
+PASSWORD=Your Wi-Fi Password
+ENCRYPTION=WPA2-PSK
+```
+
+Then run `setup` (or `connect`) with no Wi-Fi flags:
+
+```bash
+uv run harmony-hub-setup setup
+```
+
+`SSID` and `PASSWORD` are read from `.env`; `ENCRYPTION` is optional and defaults
+to `WPA2-PSK`. Command-line flags take precedence over `.env` values, so you can
+override a single field without editing the file:
+
+```bash
+uv run harmony-hub-setup setup --ssid "A Different Network"
+```
+
+Keep `.env` out of version control -- it holds your Wi-Fi password. This
+repository already lists `.env` in its `.gitignore`.
+
 ### Discover the Hub (Optional and Typically Unnecessary Step)
 
 The above `setup` command runs discovery automatically. Should you wish to identify

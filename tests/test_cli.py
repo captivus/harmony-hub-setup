@@ -13,8 +13,10 @@ sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from harmony_hub_setup.cli import (
     BluetoothDevice,
+    WifiCredentials,
     choose_setup_address,
     parse_bluetoothctl_devices,
+    resolve_wifi_credentials,
     run_android_local_network_phase,
     run_bluetooth_provision,
     validate_phase1_handoff_provision_info,
@@ -204,6 +206,72 @@ class BluetoothDiscoveryTests(unittest.TestCase):
                 )
 
         self.assertIsNone(address)
+
+
+class ResolveWifiCredentialsTests(unittest.TestCase):
+    def test_uses_env_values_when_flags_omitted(self):
+        credentials, missing = resolve_wifi_credentials(
+            ssid=None,
+            password=None,
+            encryption=None,
+            env={"SSID": "HomeNet", "PASSWORD": "secret", "ENCRYPTION": "WPA-PSK"},
+        )
+
+        self.assertEqual(missing, [])
+        self.assertEqual(
+            credentials,
+            WifiCredentials(ssid="HomeNet", password="secret", encryption="WPA-PSK"),
+        )
+
+    def test_flag_overrides_env(self):
+        credentials, missing = resolve_wifi_credentials(
+            ssid="FlagNet",
+            password="flagpass",
+            encryption="WEP",
+            env={"SSID": "EnvNet", "PASSWORD": "envpass", "ENCRYPTION": "WPA2-PSK"},
+        )
+
+        self.assertEqual(missing, [])
+        self.assertEqual(
+            credentials,
+            WifiCredentials(ssid="FlagNet", password="flagpass", encryption="WEP"),
+        )
+
+    def test_encryption_defaults_when_absent_everywhere(self):
+        credentials, missing = resolve_wifi_credentials(
+            ssid="HomeNet",
+            password="secret",
+            encryption=None,
+            env={},
+        )
+
+        self.assertEqual(missing, [])
+        self.assertEqual(credentials.encryption, "WPA2-PSK")
+
+    def test_reports_missing_required_fields(self):
+        credentials, missing = resolve_wifi_credentials(
+            ssid=None,
+            password=None,
+            encryption=None,
+            env={},
+        )
+
+        self.assertIsNone(credentials)
+        self.assertEqual(
+            missing,
+            ["--ssid (or SSID in .env)", "--password (or PASSWORD in .env)"],
+        )
+
+    def test_reports_only_the_missing_field(self):
+        credentials, missing = resolve_wifi_credentials(
+            ssid=None,
+            password="secret",
+            encryption=None,
+            env={},
+        )
+
+        self.assertIsNone(credentials)
+        self.assertEqual(missing, ["--ssid (or SSID in .env)"])
 
 
 class WaitForWifiConnectionTests(unittest.TestCase):
